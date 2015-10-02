@@ -1,0 +1,229 @@
+<?php
+
+/**
+ * @file
+ * Module to add catalog search feature to citations
+ */
+
+/**
+ * Page callback: Islandora catalog search settings
+ *
+ * @see islandora_catalog_search_menu()
+ */
+function islandora_catalog_search_form($form, &$form_state) {
+  // checkbox options
+  $form['islandora_catalog_search_options'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Options'),
+    '#options' => array(
+      'new_window' => t('Open link in new window'),
+      'use_image' => t('Use image for link'),
+      'use_post' => t('Send as POST instead of GET request'),
+    ),
+    '#default_value' => variable_get('islandora_catalog_search_options', ''),
+  );
+
+  // catalog url
+  $form['islandora_catalog_search_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Catalog URL'),
+    '#default_value' => variable_get('islandora_catalog_search_url', ''),
+    '#size' => 100,
+    '#description' => t('The base URL to your catalog'),
+  );
+
+  // http parameters
+  $form['islandora_catalog_search_url_title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('HTTP title parameter'),
+    '#default_value' => variable_get('islandora_catalog_search_url_title', ''),
+    '#size' => 100,
+    '#description' => t('The HTTP parameter for article titles'),
+  );
+  $form['islandora_catalog_search_url_author'] = array(
+    '#type' => 'textfield',
+    '#title' => t('HTTP author parameter'),
+    '#default_value' => variable_get('islandora_catalog_search_url_author', ''),
+    '#size' => 100,
+    '#description' => t('The HTTP parameter for article authors'),
+  );
+  $form['islandora_catalog_search_url_issn'] = array(
+    '#type' => 'textfield',
+    '#title' => t('HTTP issn parameter'),
+    '#default_value' => variable_get('islandora_catalog_search_url_issn', ''),
+    '#size' => 100,
+    '#description' => t('The HTTP parameter for article ISSN'),
+  );
+
+  // upload image
+  $form['islandora_catalog_search_link_image'] = array(
+    '#type' => 'managed_file',
+    '#name' => 'link_image',
+    '#title' => t('Link Image'),
+    '#default_value' => variable_get('islandora_catalog_search_link_image', ''),
+    '#description' => t("Use this image as the link to your catalog"),
+    '#upload_location' => 'public://catalog_link_image',
+  );
+
+  // image size
+  $form['islandora_catalog_search_link_image_width'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Image Width'),
+    '#default_value' => variable_get('islandora_catalog_search_link_image_width', '150'),
+    '#size' => 100,
+    '#description' => t('The width of the link image'),
+  );
+  $form['islandora_catalog_search_link_image_height'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Image Height'),
+    '#default_value' => variable_get('islandora_catalog_search_link_image_height', '50'),
+    '#size' => 100,
+    '#description' => t('The height of the link image'),
+  );
+
+  // link text
+  $form['islandora_catalog_search_link_text'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Link Text'),
+    '#default_value' => variable_get('islandora_catalog_search_link_text', 'Check our catalog'),
+    '#size' => 100,
+    '#description' => t('The Text to display for the link to the catalog if not using an image'),
+  );
+
+  // submit handler to save link image
+  $form['#submit'][] = 'islandora_catalog_search_form_submit';
+
+  return system_settings_form($form);
+}
+
+
+/*
+ * Additional submit handler for making the link image file permanent
+ */
+function islandora_catalog_search_form_submit($form, &$form_state) {
+  $file = $form['islandora_catalog_search_link_image']['#file'];
+  if (is_object($file)) {
+    $file->status = FILE_STATUS_PERMANENT;
+    file_save($file);
+    // prevent 'file not referenced' warning
+    file_usage_add($file, 'islandora_catalog_link', 'node', 1);
+  }
+}
+
+
+/**
+ * Validate the size of the image specified in the admin form
+ */
+function islandora_catalog_search_form_validate($form, &$form_state) {
+  $width = $form_state['values']['islandora_catalog_search_link_image_width'];
+  $height = $form_state['values']['islandora_catalog_search_link_image_height'];
+
+  if (!is_numeric($width)) {
+    form_set_error('islandora_catalog_search_link_image_width', t('You must enter an integer for the image width.'));
+  }
+
+  elseif (!is_numeric($height)) {
+    form_set_error('islandora_catalog_search_link_image_height', t('You must enter an integer for the image height.'));
+  }
+
+  elseif ($width <= 0) {
+    form_set_error('islandora_catalog_search_link_image_width', t('Image width must be positive.'));
+  }
+
+  elseif ($height <= 0) {
+    form_set_error('islandora_catalog_search_link_image_height', t('Image height must be positive.'));
+  }
+
+}
+
+
+/**
+ * Implements hook_menu().
+ */
+function islandora_catalog_search_menu() {
+  $items = array();
+
+  $items['admin/islandora/islandora_catalog_search'] = array(
+    'title' => 'Islandora Catalog Search',
+    'description' => 'Configuration for Islandora Catalog Search module',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_catalog_search_form'),
+    'access arguments' => array('manage islandora catalog search'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+
+/**
+ * Implements hook_block_view().
+ */
+function islandora_catalog_search_block_view($delta = '') {
+  switch ($delta) {
+    case 'catalog_link':
+      $block['subject'] = t('Link to a library catalog');
+      $block['content'] = get_catalog_link();
+      break;
+  }
+  return $block;
+}
+
+
+/**
+ * Implements hook_block_info().
+ */
+function islandora_catalog_search_block_info() {
+  // display a link to search the catalog
+  $blocks['catalog_link'] = array(
+    'info' => t('Link to library catalog'),
+    'visibility' => BLOCK_VISIBILITY_LISTED,
+    'pages' => 'islandora/object/citations*',
+    'cache' => DRUPAL_NO_CACHE,
+  );
+
+  return $blocks;
+}
+
+
+/**
+ * Create the catalog link.
+ */
+function get_catalog_link() {
+  $options = variable_get('islandora_catalog_search_options', '');
+  
+  $link_options = array('external' => TRUE, 'absolute' => TRUE);
+  if ($options['new_window'])
+    $link_options['attributes'] = array('target' => '_blank');
+
+  if ($options['use_image']) {
+    $image_fid = variable_get('islandora_catalog_search_link_image');
+    $image = file_load($image_fid);
+    $image_url = file_create_url($image->uri);
+
+    $width = variable_get('islandora_catalog_search_image_width', '150');
+    $height = variable_get('islandora_catalog_search_image_height', '50');
+    $title = variable_get('islandora_catalog_search_link_text', 'Check our catalog');
+
+    $link_options['html'] = TRUE;
+    $display = '<img title="' . $title . '" src="' . $image_url . '" style="height:' . $height . 'px; width:' . $width . 'px;"/>';
+  }
+  else {
+    $display = variable_get('islandora_catalog_search_link_text', 'Check our catalog');
+  }
+
+  return l($display, 'http://' . variable_get('islandora_catalog_search_url', ''), $link_options);
+}
+
+
+/**
+ * Implements hook_permission
+ */
+function islandora_catalog_search_permission() {
+  return array(
+    'manage islandora catalog search' => array(
+      'title' => t('Manage Islandora Catalog Search'),
+      'description' => t('Perform admin tasks for the Islandora Catalog Search Module'),
+    )
+  );
+}

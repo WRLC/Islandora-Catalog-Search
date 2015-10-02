@@ -1,0 +1,8 @@
+name = Islandora Catalog Search
+description = "This module adds a customizable block to allow searching of a library catalog from citation pages"
+dependencies = islandora_scholar
+version = 7.x-dev
+core = 7.x
+package = Islandora Tools
+;
+configure = admin/islandora/islandora_catalog_search
