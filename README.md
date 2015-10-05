@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Adds a link to citation pages which will search a library catalog for the citation.
+Adds the ability to search a library catalog for citations. 
 
 ## Requirements
 
@@ -17,7 +17,9 @@ Install as usual, see [this](https://drupal.org/documentation/install/modules-th
 
 ## Configuration
 
-Configuration can be found at admin/islandora/islandora_catalog_search
+Place the 'Link to library catalog' block and configure it to only show up on citation pages.
+
+More configuration options can be found at admin/islandora/islandora_catalog_search
 
 ## License
 

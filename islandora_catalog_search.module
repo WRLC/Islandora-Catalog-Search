@@ -18,7 +18,6 @@ function islandora_catalog_search_form($form, &$form_state) {
     '#options' => array(
       'new_window' => t('Open link in new window'),
       'use_image' => t('Use image for link'),
-      'use_post' => t('Send as POST instead of GET request'),
     ),
     '#default_value' => variable_get('islandora_catalog_search_options', ''),
   );
@@ -29,7 +28,7 @@ function islandora_catalog_search_form($form, &$form_state) {
     '#title' => t('Catalog URL'),
     '#default_value' => variable_get('islandora_catalog_search_url', ''),
     '#size' => 100,
-    '#description' => t('The base URL to your catalog'),
+    '#description' => t('The base URL to your catalog. Must start with "http://"'),
   );
 
   // http parameters
@@ -54,6 +53,17 @@ function islandora_catalog_search_form($form, &$form_state) {
     '#size' => 100,
     '#description' => t('The HTTP parameter for article ISSN'),
   );
+
+  // extra parameters
+  $form['islandora_catalog_search_url_extra'] = array(
+    '#type' => 'textfield',
+    '#title' => t('HTTP extra parameters'),
+    '#default_value' => variable_get('islandora_catalog_search_url_extra', ''),
+    '#size' => 100,
+    '#maxlength' => 4096,
+    '#description' => t('Extra HTTP parameters. Can have multiple of the form key=value separated by spaces'),
+  );
+
 
   // upload image
   $form['islandora_catalog_search_link_image'] = array(
@@ -201,8 +211,8 @@ function get_catalog_link() {
     $image = file_load($image_fid);
     $image_url = file_create_url($image->uri);
 
-    $width = variable_get('islandora_catalog_search_image_width', '150');
-    $height = variable_get('islandora_catalog_search_image_height', '50');
+    $width = variable_get('islandora_catalog_search_link_image_width', '150');
+    $height = variable_get('islandora_catalog_search_link_image_height', '50');
     $title = variable_get('islandora_catalog_search_link_text', 'Check our catalog');
 
     $link_options['html'] = TRUE;
@@ -212,7 +222,91 @@ function get_catalog_link() {
     $display = variable_get('islandora_catalog_search_link_text', 'Check our catalog');
   }
 
-  return l($display, 'http://' . variable_get('islandora_catalog_search_url', ''), $link_options);
+  // build the URL
+  $url = variable_get('islandora_catalog_search_url', '');
+  // add the HTTP parameters
+  add_params($link_options);
+
+  return l($display, $url, $link_options);
+}
+
+
+/* 
+ * Add the HTTP parameters to the URL
+ * Code adapted from https://github.com/Islandora/islandora_scholar/blob/7.x/modules/islandora_google_scholar/islandora_google_scholar.module
+ */
+function add_params(&$link_options) {
+  // get citation object
+  $item = menu_get_item();
+  $object = $item['map'][2];
+
+  // get mods data if available 
+  if (!isset($object['MODS']) || !islandora_datastream_access(ISLANDORA_VIEW_OBJECTS, $object['MODS']))
+    return '';
+  $mods = $object['MODS']->content;
+  $mods_xml = new SimpleXMLElement($mods);
+  $mods_xml->registerXPathNamespace('mods', 'http://www.loc.gov/mods/v3');
+
+  $link_options['query'] = array();
+
+  // get title
+  $title_key = variable_get('islandora_catalog_search_url_title', '');
+  $title_results = $mods_xml->xpath('//mods:mods[1]/mods:titleInfo/mods:title');
+  $link_options['query'][$title_key] = (string) reset($title_results);
+
+  // get first author
+  $author_key = variable_get('islandora_catalog_search_url_author', '');
+  $name_xml = $mods_xml->xpath('mods:name');
+  $name_xml = $name_xml[0];
+  $name_parts = array();
+  $name_xml->registerXPathNamespace('mods', 'http://www.loc.gov/mods/v3');
+  $roles = $name_xml->xpath('mods:role/mods:roleTerm');
+  $role = strtolower((string) reset($roles));
+  if ($role) {
+    if ($role == 'author') {
+      foreach ($name_xml->xpath('mods:namePart') as $name_part) {
+        if ((string) $name_part != '') {
+          // Strip periods off the end.
+          $np = (string) rtrim($name_part, '.');
+          if ($name_part['type'] == 'given') {
+            $name_parts['first_name'] = (string) $name_part;
+          }
+          if ($name_part['type'] == 'family') {
+            $name_parts['last_name'] = $np;
+          }
+          if (!isset($name_part['type'])) {
+            $name_parts['no_type'] = $np;
+          }
+        }
+      }
+    }
+    if (isset($name_parts['last_name']) && isset($name_parts['first_name'])) {
+      $link_options['query'][$author_key] = $name_parts['first_name'] . ' ' . $name_parts['last_name'];
+    }
+    elseif (isset($name_parts['no_type'])) {
+      $link_options['query'][$author_key] = $name_parts['no_type'];
+    }
+  }
+
+  // get ISSN
+  $issn_key = variable_get('islandora_catalog_search_url_issn', '');
+  $issn = $mods_xml->xpath('//mods:identifier[@type="issn"]');
+  if ($issn) {
+    $link_options['query'][$issn_key] = str_replace(
+      array("&", "=", ",", ";"),
+      array('', '', '', ''),
+      (string) reset($issn));
+  }
+
+  // add extras
+  $extras = variable_get('islandora_catalog_search_url_extra', '');
+  $arr = explode(" ", $extras);
+  foreach ($arr as $extra) {
+    $param = explode("=", $extra);
+    if (count($param) != 2)
+      continue;
+    $link_options['query'][$param[0]] = $param[1];
+  }
 }
 
 
