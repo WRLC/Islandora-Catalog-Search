@@ -64,7 +64,6 @@ function islandora_catalog_search_form($form, &$form_state) {
     '#description' => t('Extra HTTP parameters. Can have multiple of the form key=value separated by spaces'),
   );
 
-
   // upload image
   $form['islandora_catalog_search_link_image'] = array(
     '#type' => 'managed_file',
@@ -143,7 +142,6 @@ function islandora_catalog_search_form_validate($form, &$form_state) {
   elseif ($height <= 0) {
     form_set_error('islandora_catalog_search_link_image_height', t('Image height must be positive.'));
   }
-
 }
 
 

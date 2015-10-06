@@ -27,9 +27,9 @@ The following configuration options can be found at admin/islandora/islandora_ca
 
 * Catalog URL - The URL to the catalog search without any parameters.
 
-* HTTP title parameter - The name of your search's title parameter. If your search is 'www.search.com?titleparam=citation title' you would enter 'titleparam'
+* HTTP title parameter - The name of your search's title parameter. If your search is 'www.search.com?titleparam=citation_title' you would enter 'titleparam'
 
-* HTTP author parameter - The name of your search's author parameter. If your search is 'www.search.com?authparam=john smith' you would enter 'authparam'
+* HTTP author parameter - The name of your search's author parameter. If your search is 'www.search.com?authparam=john_smith' you would enter 'authparam'
 
 * HTTP issn parameter - The name of your search's issn parameter. If your search is 'www.search.com?issnparam=1234-5678' you would enter 'issnparam'
 
