@@ -1,0 +1,24 @@
+<?php
+/**
+ * @file
+ * Installation hooks for Islandora Catalog Search.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function islandora_catalog_search_uninstall() {
+  $vars = array(
+    'islandora_catalog_search_options',
+    'islandora_catalog_search_url',
+    'islandora_catalog_search_url_title',
+    'islandora_catalog_search_url_author',
+    'islandora_catalog_search_url_issn',
+    'islandora_catalog_search_url_extra',
+    'islandora_catalog_search_link_image',
+    'islandora_catalog_search_link_image_height',
+    'islandora_catalog_search_link_image_width',
+    'islandora_catalog_search_link_text',
+  );
+  array_walk($vars, 'variable_del');
+}
