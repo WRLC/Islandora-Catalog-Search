@@ -23,47 +23,47 @@ function islandora_catalog_search_form($form, &$form_state) {
   );
 
   // catalog url
-  $form['islandora_catalog_search_url'] = array(
+  $form['library_catalog_search'] += _islandora_scholar_add_variable('islandora_scholar_library_catalog_search_URL', 'https://american.summon.serialssolutions.com', array(
     '#type' => 'textfield',
-    '#title' => t('Catalog URL'),
-    '#default_value' => variable_get('islandora_catalog_search_url', ''),
-    '#size' => 100,
-    '#description' => t('The base URL to your catalog. Must start with "http://"'),
-  );
-
+    '#title' => t('Library Catalog Location'),
+    '#description' => t('The search URL for your library\'s discovery layer.'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="islandora_scholar_library_catalog_search_enabled"]' => array('checked' => TRUE),
+      ),
+    ),
+  ));
   // http parameters
-  $form['islandora_catalog_search_url_title'] = array(
+$form['library_catalog_search'] += _islandora_scholar_add_variable('islandora_scholar_library_catalog_search_params', '/search?s.q=', array(
     '#type' => 'textfield',
-    '#title' => t('HTTP title parameter'),
-    '#default_value' => variable_get('islandora_catalog_search_url_title', ''),
-    '#size' => 100,
-    '#description' => t('The HTTP parameter for article titles'),
-  );
-  $form['islandora_catalog_search_url_author'] = array(
+    '#title' => t('Library Search Parameters'),
+    '#description' => t('The search parameters for your library\'s discovery layer. Default configuration for Summon discovery layer is shown.'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="islandora_scholar_library_catalog_search_enabled"]' => array('checked' => TRUE),
+      ),
+    ),
+  ));
+$form['library_catalog_search'] += _islandora_scholar_add_variable('islandora_scholar_library_catalog_primary_search_xpath', "//mods:identifier[@type=\"doi\"]", array(
     '#type' => 'textfield',
-    '#title' => t('HTTP author parameter'),
-    '#default_value' => variable_get('islandora_catalog_search_url_author', ''),
-    '#size' => 100,
-    '#description' => t('The HTTP parameter for article authors'),
-  );
-  $form['islandora_catalog_search_url_issn'] = array(
+    '#title' => t('Library Catalog Primary Search XPath'),
+    '#description' => t('The primary xpath you want to use to search.'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="islandora_scholar_library_catalog_search_enabled"]' => array('checked' => TRUE),
+      ),
+    ),
+  ));
+  $form['library_catalog_search'] += _islandora_scholar_add_variable('islandora_scholar_library_catalog_default_search_xpath', "//mods:title", array(
     '#type' => 'textfield',
-    '#title' => t('HTTP issn parameter'),
-    '#default_value' => variable_get('islandora_catalog_search_url_issn', ''),
-    '#size' => 100,
-    '#description' => t('The HTTP parameter for article ISSN'),
-  );
-
-  // extra parameters
-  $form['islandora_catalog_search_url_extra'] = array(
-    '#type' => 'textfield',
-    '#title' => t('HTTP extra parameters'),
-    '#default_value' => variable_get('islandora_catalog_search_url_extra', ''),
-    '#size' => 100,
-    '#maxlength' => 4096,
-    '#description' => t('Extra HTTP parameters. Can have multiple of the form key=value separated by spaces'),
-  );
-
+    '#title' => t('Library Catalog Default Search XPath'),
+    '#description' => t('The default xpath you want to use to search'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="islandora_scholar_library_catalog_search_enabled"]' => array('checked' => TRUE),
+      ),
+    ),
+  ));
   // upload image
   $form['islandora_catalog_search_link_image'] = array(
     '#type' => 'managed_file',
@@ -162,151 +162,44 @@ function islandora_catalog_search_menu() {
 
   return $items;
 }
-
-
 /**
- * Implements hook_block_view().
+ * Places catalog search links on pages().
  */
-function islandora_catalog_search_block_view($delta = '') {
-  switch ($delta) {
-    case 'catalog_link':
-      $block['subject'] = t('Link to a library catalog');
-      $block['content'] = get_catalog_link();
-      break;
-  }
-  return $block;
-}
+if (variable_get('islandora_scholar_library_catalog_search_enabled', FALSE)) {
+      // Library Catalog Search.
+      $mods_xml = simplexml_load_string($object['MODS']->content);
+      $mods_xml->registerXPathNamespace('mods', 'http://www.loc.gov/mods/v3');
+      // Search for library search URL
+      $search_url = NULL;
+      $search_url = variable_get('islandora_scholar_library_catalog_search_URL', 'https://american.summon.serialssolutions.com');
+      // Search for library search parameters
+      $search_params = NULL;
+      $search_params = variable_get('islandora_scholar_library_catalog_search_params', '/search?s.q=');
+      // Search for primary search term (usually DOI).
+      $search_term = NULL;
+      $primary_search = $mods_xml->xpath("" . variable_get('islandora_scholar_library_catalog_primary_search_xpath', '//mods:identifier[@type="doi"]'));
+      if ($primary_search) {
+        $search_term = (string) reset($primary_search);
+      }
+      if (!$search_term) {
+        // Search for default search term (usually title).
+        $default_search = $mods_xml->xpath("" . variable_get('islandora_scholar_library_catalog_default_search_xpath', '//mods:title'));
+        $search_term = (string) reset($default_search);
+      }
+      if (!$search_term) {
+        $search_term = $object->label;
+      }
 
-
-/**
- * Implements hook_block_info().
- */
-function islandora_catalog_search_block_info() {
-  // display a link to search the catalog
-  $blocks['catalog_link'] = array(
-    'info' => t('Link to library catalog'),
-    'visibility' => BLOCK_VISIBILITY_LISTED,
-    'pages' => 'islandora/object/citations*',
-    'cache' => DRUPAL_NO_CACHE,
-  );
-
-  return $blocks;
-}
-
-
-/**
- * Create the catalog link.
- */
-function get_catalog_link() {
-  $options = variable_get('islandora_catalog_search_options', '');
-  
-  $link_options = array('external' => TRUE, 'absolute' => TRUE);
-  if ($options['new_window'])
-    $link_options['attributes'] = array('target' => '_blank');
-
-  if ($options['use_image']) {
-    $image_fid = variable_get('islandora_catalog_search_link_image');
-    $image = file_load($image_fid);
-    $image_url = file_create_url($image->uri);
-
-    $width = variable_get('islandora_catalog_search_link_image_width', '150');
-    $height = variable_get('islandora_catalog_search_link_image_height', '50');
-    $title = variable_get('islandora_catalog_search_link_text', 'Check our catalog');
-
-    $link_options['html'] = TRUE;
-    $display = '<img title="' . $title . '" src="' . $image_url . '" style="height:' . $height . 'px; width:' . $width . 'px;"/>';
+      $display['library_catalog_search'] = array(
+        '#type' => 'item',
+        '#markup' => l(t('Search for this publication in your library discovery service'), "$search_url$search_params\"$search_term\""),
+        '#weight' => 0,
+      );
+    }
   }
   else {
-    $display = variable_get('islandora_catalog_search_link_text', 'Check our catalog');
+    $display['citation']['#markup'] = t('Unable to load MODS.');
   }
-
-  // build the URL
-  $url = variable_get('islandora_catalog_search_url', '');
-  // add the HTTP parameters
-  add_params($link_options);
-
-  return l($display, $url, $link_options);
-}
-
-
-/* 
- * Add the HTTP parameters to the URL
- * Code adapted from https://github.com/Islandora/islandora_scholar/blob/7.x/modules/islandora_google_scholar/islandora_google_scholar.module
- */
-function add_params(&$link_options) {
-  // get citation object
-  $item = menu_get_item();
-  $object = $item['map'][2];
-
-  // get mods data if available 
-  if (!isset($object['MODS']) || !islandora_datastream_access(ISLANDORA_VIEW_OBJECTS, $object['MODS']))
-    return '';
-  $mods = $object['MODS']->content;
-  $mods_xml = new SimpleXMLElement($mods);
-  $mods_xml->registerXPathNamespace('mods', 'http://www.loc.gov/mods/v3');
-
-  $link_options['query'] = array();
-
-  // get title
-  $title_key = variable_get('islandora_catalog_search_url_title', '');
-  $title_results = $mods_xml->xpath('//mods:mods[1]/mods:titleInfo/mods:title');
-  $link_options['query'][$title_key] = (string) reset($title_results);
-
-  // get first author
-  $author_key = variable_get('islandora_catalog_search_url_author', '');
-  $name_xml = $mods_xml->xpath('mods:name');
-  $name_xml = $name_xml[0];
-  $name_parts = array();
-  $name_xml->registerXPathNamespace('mods', 'http://www.loc.gov/mods/v3');
-  $roles = $name_xml->xpath('mods:role/mods:roleTerm');
-  $role = strtolower((string) reset($roles));
-  if ($role) {
-    if ($role == 'author') {
-      foreach ($name_xml->xpath('mods:namePart') as $name_part) {
-        if ((string) $name_part != '') {
-          // Strip periods off the end.
-          $np = (string) rtrim($name_part, '.');
-          if ($name_part['type'] == 'given') {
-            $name_parts['first_name'] = (string) $name_part;
-          }
-          if ($name_part['type'] == 'family') {
-            $name_parts['last_name'] = $np;
-          }
-          if (!isset($name_part['type'])) {
-            $name_parts['no_type'] = $np;
-          }
-        }
-      }
-    }
-    if (isset($name_parts['last_name']) && isset($name_parts['first_name'])) {
-      $link_options['query'][$author_key] = $name_parts['first_name'] . ' ' . $name_parts['last_name'];
-    }
-    elseif (isset($name_parts['no_type'])) {
-      $link_options['query'][$author_key] = $name_parts['no_type'];
-    }
-  }
-
-  // get ISSN
-  $issn_key = variable_get('islandora_catalog_search_url_issn', '');
-  $issn = $mods_xml->xpath('//mods:identifier[@type="issn"]');
-  if ($issn) {
-    $link_options['query'][$issn_key] = str_replace(
-      array("&", "=", ",", ";"),
-      array('', '', '', ''),
-      (string) reset($issn));
-  }
-
-  // add extras
-  $extras = variable_get('islandora_catalog_search_url_extra', '');
-  $arr = explode(" ", $extras);
-  foreach ($arr as $extra) {
-    $param = explode("=", $extra);
-    if (count($param) != 2)
-      continue;
-    $link_options['query'][$param[0]] = $param[1];
-  }
-}
-
 
 /**
  * Implements hook_permission
